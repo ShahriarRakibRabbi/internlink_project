@@ -46,7 +46,7 @@ $stmt->execute([$student['student_id']]);
 $studentSkills = $stmt->fetchAll();
 
 // Get all available skills
-$stmt = $pdo->query("SELECT * FROM skills ORDER BY name");
+$stmt = $pdo->query("SELECT * FROM skills ORDER BY skill_name");
 $allSkills = $stmt->fetchAll();
 
 $error = '';
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             case 'update_profile':
                 $stmt = $pdo->prepare("
                     UPDATE students 
-                    SET full_name = ?, phone = ?, university = ?, graduation_year = ?, bio = ?
+                    SET full_name = ?, contact = ?, university = ?, graduation_year = ?, bio = ?
                     WHERE student_id = ?
                 ");
                 $stmt->execute([
@@ -135,6 +135,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 if (isset($_GET['success'])) {
     $success = "Profile updated successfully!";
 }
+
+// Helper: get skill IDs for checkbox selection
+$studentSkillIds = array_column($studentSkills, 'skill_id');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -190,7 +193,7 @@ if (isset($_GET['success'])) {
                     <div class="form-group">
                         <label for="phone">Phone:</label>
                         <input type="tel" id="phone" name="phone" 
-                               value="<?php echo htmlspecialchars($student['phone'] ?? ''); ?>">
+                               value="<?php echo htmlspecialchars($student['contact'] ?? ''); ?>">
                     </div>
 
                     <div class="form-group">
@@ -332,8 +335,8 @@ if (isset($_GET['success'])) {
                             <label class="skill-checkbox">
                                 <input type="checkbox" name="skills[]" 
                                        value="<?php echo $skill['skill_id']; ?>"
-                                       <?php echo in_array($skill, $studentSkills) ? 'checked' : ''; ?>>
-                                <?php echo htmlspecialchars($skill['name']); ?>
+                                       <?php echo in_array($skill['skill_id'], $studentSkillIds) ? 'checked' : ''; ?>>
+                                <?php echo htmlspecialchars($skill['skill_name']); ?>
                             </label>
                         <?php endforeach; ?>
                     </div>
