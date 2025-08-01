@@ -1,5 +1,5 @@
 -- InternLink Database Schema
--- Port: 3307
+-- Port: 3306
 
 SET FOREIGN_KEY_CHECKS=0;
 
@@ -171,7 +171,51 @@ CREATE TABLE interest_categories (
     FOREIGN KEY (interest_id) REFERENCES internship_interests(interest_id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
 );
+CREATE TABLE education (
+    education_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    institution VARCHAR(100) NOT NULL,
+    degree VARCHAR(100) NOT NULL,
+    field_of_study VARCHAR(100),
+    start_year INT,
+    end_year INT,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+);
 
+-- Add Experience Table
+CREATE TABLE experience (
+    experience_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    company_name VARCHAR(100) NOT NULL,
+    position VARCHAR(100) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    description TEXT,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+);
+
+CREATE TABLE education (
+    education_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    institution VARCHAR(100) NOT NULL,
+    degree VARCHAR(100) NOT NULL,
+    field_of_study VARCHAR(100),
+    start_year INT,
+    end_year INT,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+);
+
+-- Add Experience Table
+CREATE TABLE experience (
+    experience_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    company_name VARCHAR(100) NOT NULL,
+    position VARCHAR(100) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    description TEXT,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+);
 
 -- Insert some default categories
 INSERT INTO categories (category_name) VALUES 
