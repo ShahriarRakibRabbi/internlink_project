@@ -19,10 +19,10 @@ $student = $stmt->fetch();
 
 // Get student's applications
 $stmt = $pdo->prepare("
-    SELECT a.*, i.title as internship_title, c.company_name
+    SELECT a.*, o.role as internship_title, c.company_name
     FROM applications a
-    JOIN internships i ON a.internship_id = i.internship_id
-    JOIN companies c ON i.company_id = c.company_id
+    JOIN internship_offers o ON a.offer_id = o.offer_id
+    JOIN companies c ON o.company_id = c.company_id
     WHERE a.student_id = ?
     ORDER BY a.applied_at DESC
 ");
@@ -74,7 +74,7 @@ $skills = $stmt->fetchAll();
             <h3>My Skills</h3>
             <div class="skills-list">
                 <?php foreach ($skills as $skill): ?>
-                    <span class="badge"><?php echo htmlspecialchars($skill['name']); ?></span>
+                    <span class="badge"><?php echo htmlspecialchars($skill['skill_name']); ?></span>
                 <?php endforeach; ?>
             </div>
             <a href="manage_skills.php" class="btn">Manage Skills</a>
@@ -106,7 +106,7 @@ $skills = $stmt->fetchAll();
                                 </td>
                                 <td><?php echo date('M d, Y', strtotime($app['applied_at'])); ?></td>
                                 <td>
-                                    <a href="../internship.php?id=<?php echo $app['internship_id']; ?>" class="btn">View</a>
+                                    <a href="../internship.php?id=<?php echo $app['offer_id']; ?>" class="btn">View</a>
                                     <?php if ($app['status'] === 'pending'): ?>
                                         <a href="withdraw_application.php?id=<?php echo $app['application_id']; ?>" 
                                            class="btn btn-danger"
