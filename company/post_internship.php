@@ -13,11 +13,11 @@ $stmt->execute([$_SESSION['user_id']]);
 $company = $stmt->fetch();
 
 // Get all categories
-$stmt = $pdo->query("SELECT * FROM categories ORDER BY name");
+$stmt = $pdo->query("SELECT * FROM categories ORDER BY category_name");
 $categories = $stmt->fetchAll();
 
 // Get all skills
-$stmt = $pdo->query("SELECT * FROM skills ORDER BY name");
+$stmt = $pdo->query("SELECT * FROM skills ORDER BY skill_name");
 $skills = $stmt->fetchAll();
 
 $error = '';
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <option value="">Select Category</option>
                         <?php foreach ($categories as $category): ?>
                             <option value="<?php echo $category['category_id']; ?>">
-                                <?php echo htmlspecialchars($category['name']); ?>
+                                <?php echo htmlspecialchars($category['category_name']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php foreach ($skills as $skill): ?>
                             <label class="skill-checkbox">
                                 <input type="checkbox" name="skills[]" value="<?php echo $skill['skill_id']; ?>">
-                                <?php echo htmlspecialchars($skill['name']); ?>
+                                <?php echo htmlspecialchars($skill['skill_name']); ?>
                             </label>
                         <?php endforeach; ?>
                     </div>
