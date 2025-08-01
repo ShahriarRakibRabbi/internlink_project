@@ -19,14 +19,6 @@ DROP TABLE IF EXISTS users;
 
 SET FOREIGN_KEY_CHECKS=1;
 
-CREATE TABLE users (
-    user_id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role ENUM('student', 'company', 'admin') NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 -- InternConnect Database Schema (12 Tables)
 -- Each table is commented for clarity
 
