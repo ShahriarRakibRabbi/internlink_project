@@ -1,20 +1,20 @@
 <?php
 require_once 'includes/db.php';
 
-// Get latest internships
+// Get latest internships (with category and company info)
 $stmt = $pdo->query("
-    SELECT i.*, c.company_name, cat.name as category_name 
-    FROM internships i
+    SELECT i.*, c.company_name, cat.category_name
+    FROM internship_offers i
     JOIN companies c ON i.company_id = c.company_id
-    JOIN categories cat ON i.category_id = cat.category_id
-    WHERE i.status = 'open'
-    ORDER BY i.posted_at DESC
+    JOIN offer_categories oc ON i.offer_id = oc.offer_id
+    JOIN categories cat ON oc.category_id = cat.category_id
+    ORDER BY i.created_at DESC
     LIMIT 6
 ");
 $internships = $stmt->fetchAll();
 
 // Get all categories
-$stmt = $pdo->query("SELECT * FROM categories ORDER BY name");
+$stmt = $pdo->query("SELECT * FROM categories ORDER BY category_name");
 $categories = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -56,7 +56,7 @@ $categories = $stmt->fetchAll();
                     <option value="">All Categories</option>
                     <?php foreach ($categories as $category): ?>
                         <option value="<?php echo $category['category_id']; ?>">
-                            <?php echo htmlspecialchars($category['name']); ?>
+                            <?php echo htmlspecialchars($category['category_name']); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -69,12 +69,13 @@ $categories = $stmt->fetchAll();
         <div class="grid">
             <?php foreach ($internships as $internship): ?>
                 <div class="card">
-                    <h3><?php echo htmlspecialchars($internship['title']); ?></h3>
+                    <h3><?php echo htmlspecialchars($internship['role']); ?></h3>
                     <p><strong>Company:</strong> <?php echo htmlspecialchars($internship['company_name']); ?></p>
                     <p><strong>Category:</strong> <?php echo htmlspecialchars($internship['category_name']); ?></p>
-                    <p><strong>Location:</strong> <?php echo htmlspecialchars($internship['location']); ?></p>
-                    <p><strong>Posted:</strong> <?php echo date('M d, Y', strtotime($internship['posted_at'])); ?></p>
-                    <a href="internship.php?id=<?php echo $internship['internship_id']; ?>" class="btn">View Details</a>
+                    <p><strong>Stipend:</strong> <?php echo htmlspecialchars($internship['stipend']); ?></p>
+                    <p><strong>Duration:</strong> <?php echo htmlspecialchars($internship['duration']); ?></p>
+                    <p><strong>Posted:</strong> <?php echo date('M d, Y', strtotime($internship['created_at'])); ?></p>
+                    <a href="internship.php?id=<?php echo $internship['offer_id']; ?>" class="btn">View Details</a>
                 </div>
             <?php endforeach; ?>
         </div>
