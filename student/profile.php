@@ -17,37 +17,59 @@ $stmt = $pdo->prepare("
 $stmt->execute([$_SESSION['user_id']]);
 $student = $stmt->fetch();
 
+// Check if student exists
+if (!$student) {
+    echo "Student profile not found. Please contact administrator.";
+    exit();
+}
+
 // Get education history
-$stmt = $pdo->prepare("
-    SELECT * FROM education 
-    WHERE student_id = ? 
-    ORDER BY end_year DESC, start_year DESC
-");
-$stmt->execute([$student['student_id']]);
-$education = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare("
+        SELECT * FROM education 
+        WHERE student_id = ? 
+        ORDER BY end_year DESC, start_year DESC
+    ");
+    $stmt->execute([$student['student_id']]);
+    $education = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $education = []; // Table doesn't exist yet
+}
 
 // Get experience
-$stmt = $pdo->prepare("
-    SELECT * FROM experience 
-    WHERE student_id = ? 
-    ORDER BY end_date DESC, start_date DESC
-");
-$stmt->execute([$student['student_id']]);
-$experience = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare("
+        SELECT * FROM experience 
+        WHERE student_id = ? 
+        ORDER BY end_date DESC, start_date DESC
+    ");
+    $stmt->execute([$student['student_id']]);
+    $experience = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $experience = []; // Table doesn't exist yet
+}
 
 // Get student's skills
-$stmt = $pdo->prepare("
-    SELECT s.* 
-    FROM skills s
-    JOIN student_skills ss ON s.skill_id = ss.skill_id
-    WHERE ss.student_id = ?
-");
-$stmt->execute([$student['student_id']]);
-$studentSkills = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare("
+        SELECT s.* 
+        FROM skills s
+        JOIN student_skills ss ON s.skill_id = ss.skill_id
+        WHERE ss.student_id = ?
+    ");
+    $stmt->execute([$student['student_id']]);
+    $studentSkills = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $studentSkills = []; // Table doesn't exist yet
+}
 
 // Get all available skills
-$stmt = $pdo->query("SELECT * FROM skills ORDER BY skill_name");
-$allSkills = $stmt->fetchAll();
+try {
+    $stmt = $pdo->query("SELECT * FROM skills ORDER BY skill_name");
+    $allSkills = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $allSkills = []; // Table doesn't exist yet
+}
 
 $error = '';
 $success = '';
@@ -59,19 +81,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         switch ($_POST['action']) {
             case 'update_profile':
+                // Validate required fields
+                if (empty($_POST['full_name'])) {
+                    throw new Exception("Full name is required.");
+                }
+                
                 $stmt = $pdo->prepare("
                     UPDATE students 
                     SET full_name = ?, contact = ?, university = ?, graduation_year = ?, bio = ?
                     WHERE student_id = ?
                 ");
-                $stmt->execute([
+                $result = $stmt->execute([
                     sanitize($_POST['full_name']),
                     sanitize($_POST['phone']),
                     sanitize($_POST['university']),
-                    $_POST['graduation_year'],
+                    !empty($_POST['graduation_year']) ? (int)$_POST['graduation_year'] : null,
                     sanitize($_POST['bio']),
                     $student['student_id']
                 ]);
+                
+                if (!$result) {
+                    throw new Exception("Failed to update profile.");
+                }
                 break;
 
             case 'add_education':
@@ -126,9 +157,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         header("Location: profile.php?success=1");
         exit();
 
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        // Log the actual error for debugging (in production, log to file instead)
+        error_log("Database error in student profile update: " . $e->getMessage());
+        $error = "Database error occurred. Please check if all required fields are filled correctly.";
     } catch (Exception $e) {
         $pdo->rollBack();
-        $error = "Error updating profile. Please try again.";
+        $error = $e->getMessage();
     }
 }
 

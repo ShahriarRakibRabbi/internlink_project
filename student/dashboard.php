@@ -7,7 +7,6 @@ if (getUserRole() !== 'student') {
     exit();
 }
 
-// Get student details
 $stmt = $pdo->prepare("
     SELECT s.*, u.email 
     FROM students s
@@ -17,19 +16,38 @@ $stmt = $pdo->prepare("
 $stmt->execute([$_SESSION['user_id']]);
 $student = $stmt->fetch();
 
-// Get student's applications
-$stmt = $pdo->prepare("
-    SELECT a.*, o.role as internship_title, c.company_name
-    FROM applications a
-    JOIN internship_offers o ON a.offer_id = o.offer_id
-    JOIN companies c ON o.company_id = c.company_id
-    WHERE a.student_id = ?
-    ORDER BY a.applied_at DESC
-");
-$stmt->execute([$student['student_id']]);
-$applications = $stmt->fetchAll();
 
-// Get student's skills
+try {
+    $stmt = $pdo->prepare("
+        SELECT a.*, i.title as internship_title, c.company_name, i.internship_id
+        FROM applications a
+        JOIN internships i ON a.internship_id = i.internship_id
+        JOIN companies c ON i.company_id = c.company_id
+        WHERE a.student_id = ?
+        ORDER BY a.applied_at DESC
+    ");
+    $stmt->execute([$student['student_id']]);
+    $applications = $stmt->fetchAll();
+} catch (PDOException $e) {
+   
+    try {
+        $stmt = $pdo->prepare("
+            SELECT a.*, o.role as internship_title, c.company_name, o.offer_id as internship_id
+            FROM applications a
+            JOIN internship_offers o ON a.offer_id = o.offer_id
+            JOIN companies c ON o.company_id = c.company_id
+            WHERE a.student_id = ?
+            ORDER BY a.applied_at DESC
+        ");
+        $stmt->execute([$student['student_id']]);
+        $applications = $stmt->fetchAll();
+    } catch (PDOException $e2) {
+        error_log("Error fetching applications: " . $e2->getMessage());
+        $applications = [];
+    }
+}
+
+
 $stmt = $pdo->prepare("
     SELECT s.* 
     FROM skills s
@@ -61,7 +79,19 @@ $skills = $stmt->fetchAll();
     </nav>
 
     <div class="container">
-        <!-- Profile Summary -->
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert alert-danger">
+                <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="alert alert-success">
+                <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
+            </div>
+        <?php endif; ?>
+
+       
         <div class="profile-header">
             <h2>Welcome, <?php echo htmlspecialchars($student['full_name']); ?></h2>
             <p>Email: <?php echo htmlspecialchars($student['email']); ?></p>
@@ -69,7 +99,7 @@ $skills = $stmt->fetchAll();
             <a href="profile.php" class="btn">Edit Profile</a>
         </div>
 
-        <!-- Skills Section -->
+        
         <div class="card">
             <h3>My Skills</h3>
             <div class="skills-list">
@@ -80,7 +110,7 @@ $skills = $stmt->fetchAll();
             <a href="manage_skills.php" class="btn">Manage Skills</a>
         </div>
 
-        <!-- Applications -->
+        
         <h3>My Applications</h3>
         <?php if (!empty($applications)): ?>
             <div class="table-responsive">
@@ -106,7 +136,7 @@ $skills = $stmt->fetchAll();
                                 </td>
                                 <td><?php echo date('M d, Y', strtotime($app['applied_at'])); ?></td>
                                 <td>
-                                    <a href="../internship.php?id=<?php echo $app['offer_id']; ?>" class="btn">View</a>
+                                    <a href="../internship.php?id=<?php echo $app['internship_id']; ?>" class="btn">View</a>
                                     <?php if ($app['status'] === 'pending'): ?>
                                         <a href="withdraw_application.php?id=<?php echo $app['application_id']; ?>" 
                                            class="btn btn-danger"
