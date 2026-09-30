@@ -2,19 +2,28 @@
 require_once 'includes/db.php';
 
 // Get all categories for filter
-$stmt = $pdo->query("SELECT * FROM categories ORDER BY name");
-$categories = $stmt->fetchAll();
+try {
+    $stmt = $pdo->query("SELECT * FROM categories ORDER BY category_name");
+    $categories = $stmt->fetchAll();
+} catch (Exception $e) {
+    $categories = [];
+}
 
 // Get all skills for filter
-$stmt = $pdo->query("SELECT * FROM skills ORDER BY name");
-$skills = $stmt->fetchAll();
+try {
+    $stmt = $pdo->query("SELECT * FROM skills ORDER BY skill_name");
+    $skills = $stmt->fetchAll();
+} catch (Exception $e) {
+    $skills = [];
+}
 
-// Build search query
-$where = ["i.status = 'open'"]; // Only show open internships
+// Build search query with proper error handling
+$where = ["i.status = 'active'"]; // Only show active internships
 $params = [];
 
+// Basic search parameters
 if (!empty($_GET['q'])) {
-    $where[] = "(i.title LIKE ? OR i.description LIKE ? OR i.location LIKE ? OR c.company_name LIKE ?)";
+    $where[] = "(i.title LIKE ? OR i.description LIKE ? OR i.requirements LIKE ? OR c.company_name LIKE ?)";
     $searchTerm = "%" . $_GET['q'] . "%";
     $params = array_merge($params, [$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
 }
@@ -29,13 +38,15 @@ if (!empty($_GET['location'])) {
     $params[] = "%" . $_GET['location'] . "%";
 }
 
+// Skills filter: show internships matching ANY of the selected skills
+$skillsJoin = "";
 if (!empty($_GET['skills'])) {
     $skillIds = $_GET['skills'];
-    $placeholders = str_repeat('?,', count($skillIds) - 1) . '?';
-    $where[] = "EXISTS (
-        SELECT 1 FROM internship_skills is2 
-        WHERE is2.internship_id = i.internship_id 
-        AND is2.skill_id IN ($placeholders)
+    $placeholders = implode(',', array_fill(0, count($skillIds), '?'));
+    $where[] = "i.internship_id IN (
+        SELECT DISTINCT is_skills.internship_id 
+        FROM internship_skills is_skills 
+        WHERE is_skills.skill_id IN ($placeholders)
     )";
     $params = array_merge($params, $skillIds);
 }
@@ -44,21 +55,25 @@ $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // Execute search query
 $query = "
-    SELECT DISTINCT i.*, c.company_name, cat.name as category_name,
-           GROUP_CONCAT(s.name) as skills
+    SELECT DISTINCT i.*, c.company_name, 
+           COALESCE(cat.category_name, 'Uncategorized') as category_name
     FROM internships i
     JOIN companies c ON i.company_id = c.company_id
-    JOIN categories cat ON i.category_id = cat.category_id
-    LEFT JOIN internship_skills is1 ON i.internship_id = is1.internship_id
-    LEFT JOIN skills s ON is1.skill_id = s.skill_id
+    LEFT JOIN categories cat ON i.category_id = cat.category_id
     $whereClause
-    GROUP BY i.internship_id
-    ORDER BY i.posted_at DESC
+    ORDER BY i.created_at DESC
 ";
 
-$stmt = $pdo->prepare($query);
-$stmt->execute($params);
-$internships = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $internships = $stmt->fetchAll();
+} catch (PDOException $e) {
+    // Log error and show user-friendly message
+    error_log("Database error in search: " . $e->getMessage());
+    $internships = [];
+    $search_error = "There was an error searching for internships. Please try again later.";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -88,13 +103,17 @@ $internships = $stmt->fetchAll();
     <div class="container">
         <h2>Search Internships</h2>
 
+        <?php if (isset($search_error)): ?>
+            <div class="alert alert-danger"><?php echo $search_error; ?></div>
+        <?php endif; ?>
+
         <!-- Search Form -->
         <div class="card search-filters">
             <form method="GET" action="" id="searchForm">
                 <div class="search-row">
                     <div class="form-group">
                         <input type="text" name="q" class="search-input" 
-                               placeholder="Search by title, company, or location..."
+                               placeholder="Search by role, company, or requirements..."
                                value="<?php echo htmlspecialchars($_GET['q'] ?? ''); ?>">
                     </div>
 
@@ -104,7 +123,7 @@ $internships = $stmt->fetchAll();
                             <?php foreach ($categories as $category): ?>
                                 <option value="<?php echo $category['category_id']; ?>"
                                     <?php echo (isset($_GET['category']) && $_GET['category'] == $category['category_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($category['name']); ?>
+                                    <?php echo htmlspecialchars($category['category_name']); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -125,7 +144,7 @@ $internships = $stmt->fetchAll();
                                 <input type="checkbox" name="skills[]" 
                                        value="<?php echo $skill['skill_id']; ?>"
                                        <?php echo (isset($_GET['skills']) && in_array($skill['skill_id'], $_GET['skills'])) ? 'checked' : ''; ?>>
-                                <?php echo htmlspecialchars($skill['name']); ?>
+                                <?php echo htmlspecialchars($skill['skill_name']); ?>
                             </label>
                         <?php endforeach; ?>
                     </div>
@@ -147,19 +166,38 @@ $internships = $stmt->fetchAll();
                             <h3><?php echo htmlspecialchars($internship['title']); ?></h3>
                             <p class="company"><?php echo htmlspecialchars($internship['company_name']); ?></p>
                             <p class="category"><?php echo htmlspecialchars($internship['category_name']); ?></p>
-                            <p class="location">📍 <?php echo htmlspecialchars($internship['location']); ?></p>
+                            <p class="location">📍 <?php echo htmlspecialchars($internship['location'] ?? ''); ?></p>
                             
-                            <?php if ($internship['skills']): ?>
-                                <div class="skills">
-                                    <?php foreach (explode(',', $internship['skills']) as $skill): ?>
-                                        <span class="badge"><?php echo htmlspecialchars($skill); ?></span>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
+                            <?php 
+                            // Get skills for this internship
+                            try {
+                                $skillStmt = $pdo->prepare("
+                                    SELECT s.skill_name 
+                                    FROM internship_skills is_join 
+                                    JOIN skills s ON is_join.skill_id = s.skill_id 
+                                    WHERE is_join.internship_id = ?
+                                ");
+                                $skillStmt->execute([$internship['internship_id']]);
+                                $internshipSkills = $skillStmt->fetchAll();
+                                
+                                if ($internshipSkills): ?>
+                                    <div class="skills">
+                                        <?php foreach ($internshipSkills as $skill): ?>
+                                            <span class="badge"><?php echo htmlspecialchars($skill['skill_name']); ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif;
+                            } catch (Exception $e) {
+                                // Skills table might not exist, continue without skills
+                            }
+                            ?>
 
-                            <p class="stipend">💰 Stipend: <?php echo htmlspecialchars($internship['stipend']); ?></p>
-                            <p class="duration">⏱️ Duration: <?php echo htmlspecialchars($internship['duration']); ?></p>
-                            <p class="deadline">Deadline: <?php echo date('M d, Y', strtotime($internship['deadline'])); ?></p>
+                            <p class="stipend">💰 Stipend: <?php echo htmlspecialchars($internship['stipend'] ?? 'Not specified'); ?></p>
+                            <p class="duration">⏱️ Duration: <?php echo htmlspecialchars($internship['duration'] ?? 'Not specified'); ?></p>
+                            <?php if ($internship['deadline']): ?>
+                                <p class="deadline">📅 Deadline: <?php echo date('M d, Y', strtotime($internship['deadline'])); ?></p>
+                            <?php endif; ?>
+                            <p class="posted">Posted: <?php echo date('M d, Y', strtotime($internship['created_at'])); ?></p>
                             
                             <div class="card-actions">
                                 <a href="internship.php?id=<?php echo $internship['internship_id']; ?>" 
@@ -177,6 +215,16 @@ $internships = $stmt->fetchAll();
     </div>
 
     <style>
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+        }
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
         .search-filters {
             margin-bottom: 2rem;
         }
